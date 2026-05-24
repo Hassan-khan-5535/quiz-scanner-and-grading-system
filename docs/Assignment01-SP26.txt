@@ -1,152 +1,0 @@
-Assignment: Automated Quiz Scanner & Grading System
-Course: Artificial Intelligence (BSE-4A) 
-Semester: SP 2026 
-Submission Deadline:  May 30, 2026 
-Total Points: 100 + 30 Bonus
-
-Overview
-You are given physical quiz papers (see the sample provided in class). Each quiz has:
-* A QR code in the top-right corner that encodes the answer key for that quiz set
-* A bubble sheet (answer grid) where students fill in their chosen options (A/B/C/D) for Part-I and Part-II
-* Student info fields: Name and Registration Number (handwritten)
-* Quiz metadata: Class, Subject, Time, Total Marks, Set identifier
-Your task is to build an application that automatically scans one or more quiz sheets, decodes the answer key from the QR code, reads the filled bubbles, extracts student information, grades the quiz, and produces a structured report.
-You may build a web app, desktop app, or mobile app in any programming language or framework of your choice. Each deliverable is broken into levels — complete as many as you can.
-
-The Quiz Format (Reference)
-
-
-QR Code payload (example encoding):
-AI Quiz SP2026 Set-C | Part-I: Q1=D Q2=A Q3=B Q4=A Q5=D Q6=A Q7=A Q8=B | Part-II: Q1=C Q2=D Q3=D Q4=D Q5=C Q6=C Q7=C Q8=B
-
-Tasks & Point Breakdown
-
-Task 1 — QR Code Decoding [15 points]
-Detect and decode the QR code from a scanned or photographed quiz image to extract the answer key.
-Requirements:
-* Accept an image file (JPG, PNG, or PDF scan) as input
-* Locate the QR code anywhere on the page (it may be slightly rotated or skewed)
-* Decode the payload and parse it into a structured answer key:
-o Quiz set identifier
-o Correct answers for Part-I (Q01–Q08)
-o Correct answers for Part-II (Q01–Q08)
-* Display or log the decoded answer key in a readable format
-Deliverable: A function/module decode_answer_key(image) ? AnswerKey and a demo showing it working on the provided sample.
-Evaluation criteria:
-* Correct decoding on a clean scan: 10 pts
-* Handles moderate rotation/skew/glare: +5 pts
-
-Task 2 — Student Information Extraction [15 points]
-Extract the student's name and registration number from the quiz sheet using OCR (Optical Character Recognition).
-Requirements:
-* Locate the "Name" and "Registration #" fields on the page
-* Extract the handwritten text from those fields
-* Handle common OCR noise (smudges, varying handwriting styles)
-* Return a structured result: { name: string, reg_no: string }
-Suggested tools: Tesseract OCR, Google ML Kit, EasyOCR, OpenCV + Tesseract, or any OCR API.
-Deliverable: A function/module extract_student_info(image) ? StudentInfo with a demo.
-Evaluation criteria:
-* Correct field region detection: 5 pts
-* Accurate OCR output on printed text: 5 pts
-* Reasonable accuracy on handwritten text: +5 pts
-
-Task 3 — Bubble Sheet Reading [20 points]
-Detect and interpret the filled bubbles in the answer grid for both Part-I and Part-II.
-Requirements:
-* Detect the answer grid/table in the image
-* For each question (Q01–Q08) in each part, identify which bubble (A, B, C, or D) is filled
-* Handle cases where:
-o A bubble is partially filled
-o No bubble is filled (unattempted)
-o More than one bubble is filled (invalid — flag it)
-* Return a structured result:
-{
-  part1: { Q01: "A", Q02: "C", Q03: null, ... },
-  part2: { Q01: "B", Q02: "A", ... }
-}
-Suggested approach: Perspective correction ? grid detection ? circle/contour detection ? fill ratio threshold.
-Deliverable: A function/module read_bubble_sheet(image) ? StudentAnswers with a demo.
-Evaluation criteria:
-* Correctly reads all 16 bubbles on a clean scan: 12 pts
-* Handles moderate image tilt/warp: +4 pts
-* Flags invalid (multi-filled or unattempted) bubbles: +4 pts
-
-Task 4 — Quiz Grading [20 points]
-Compare the student's answers (Task 3) against the answer key (Task 1) and compute the grade.
-Requirements:
-* Compare each answer bubble-by-bubble against the decoded key
-* Count: correct answers, incorrect answers, unattempted questions
-* Calculate total marks (assume 1 mark per correct answer, 0 for incorrect/blank — unless a negative marking scheme is specified in the QR payload)
-* Display a per-question breakdown: tick (correct), cross (incorrect), dash (unattempted)
-* Display the final score: e.g., 12 / 16
-Deliverable: A function/module grade_quiz(student_answers, answer_key) ? GradeReport and a UI screen or printed report showing the breakdown.
-Evaluation criteria:
-* Correct score calculation: 10 pts
-* Per-question breakdown display: 6 pts
-* Handles negative marking if encoded in QR: +4 pts
-
-Task 5 — Batch Processing & Report Generation [30 points]
-Process multiple quiz sheets in one run and produce a structured output file.
-Requirements:
-* Accept a folder/batch of quiz images (at least 5 sample scans)
-* Run Tasks 1–4 automatically for each image
-* Aggregate results into a single CSV or Excel (.xlsx) file with the following columns:
-ColumnDescriptionQuizQuiz identifier (e.g., "Quiz 1")SetQuiz set number (from QR code)ClassClass name (e.g., BSE-4A)SubjectSubject nameNameStudent name (from OCR)Reg NoRegistration number (from OCR)Part1_Q01 … Part1_Q08Student answer for each Part-I questionPart2_Q01 … Part2_Q08Student answer for each Part-II questionCorrectNumber of correct answersIncorrectNumber of incorrect answersUnattemptedNumber of unattempted questionsTotal MarksFinal scorePercentageScore as a percentageGradeLetter grade (A/B/C/D/F based on standard scale)* The Excel/CSV file must be auto-named with the quiz title and timestamp
-* Provide a summary row at the bottom: class average, highest score, lowest score
-Deliverable: A working batch mode in your app that produces the output file, plus a sample output file included in your submission.
-Evaluation criteria:
-* Correct batch pipeline running end-to-end: 15 pts
-* All required columns present and accurately populated: 10 pts
-* Summary statistics row: 5 pts
-
-Bonus Task — Augmented Reality Grading App (Android) [+30 points]
-Build a real-time AR Android application that grades a quiz sheet through the camera, without requiring the user to capture a still image.
-Requirements:
-* Point the phone camera at a printed quiz sheet
-* The app detects and decodes the QR code in real time
-* The app overlays on the live camera feed:
-o A green tick over each correctly filled bubble
-o A red cross over each incorrectly filled bubble
-o A dash or empty ring over unattempted bubbles
-o The student's total score displayed as an AR overlay on the answer grid
-* The overlay must remain anchored to the paper even when the phone or paper moves
-* Optionally: tap a button to save the graded result to the batch CSV
-Suggested stack: Android (Kotlin/Java) + ARCore + ML Kit (QR + text) + OpenCV (bubble detection)
-Deliverable: An installable APK + source code + a short screen-recorded demo video (30–60 seconds).
-Bonus point breakdown:
-* Real-time QR decoding through camera: 8 pts
-* Real-time bubble detection through camera: 10 pts
-* AR tick/cross overlay anchored to paper: 8 pts
-* Score display overlay: 4 pts
-
-Submission Requirements
-1. Source code in a GitHub repository (or zipped folder)
-2. README.md in your repo with:
-o How to install and run your application
-o Which tasks you completed
-o Libraries/frameworks used
-o Sample screenshots or a short demo video
-3. Sample output file (CSV or Excel) from Task 5 (even if generated from synthetic data)
-4. For the Bonus Task: include the APK and a demo video link
-Folder structure (recommended)
-your-name-quiz-scanner/
-??? src/                  # source code
-??? samples/              # sample quiz images used for testing
-??? output/               # sample CSV/Excel output
-??? demo/                 # screenshots or video
-??? README.md
-
-Technology Suggestions
-You are free to use any language or stack. Some starting points:
-ComponentSuggestionsQR Code decodingpyzbar, opencv, zxing, ML KitOCR (text extraction)Tesseract, EasyOCR, Google Vision API, ML KitImage processingOpenCV, Pillow, scikit-imageExcel/CSV outputopenpyxl, pandas, xlsxwriterWeb frontendReact, Vue, plain HTML/JSDesktop appPython (Tkinter/PyQt), Electron, C# WinFormsMobileFlutter, React Native, Android (Kotlin)AR (Bonus)ARCore + Android, Unity + Vuforia
-Grading Summary
-TaskDescriptionPointsTask 1QR Code Decoding15Task 2Student Info Extraction (OCR)15Task 3Bubble Sheet Reading20Task 4Quiz Grading20Task 5Batch Processing & Report File30Total100BonusAR Android Real-Time Grading App+30Tasks are independent — you can attempt them in any order. You will receive partial credit for partially complete tasks, provided what you submit runs without crashing.
-
-Academic Integrity
-* You may use open-source libraries for image processing, QR decoding, and OCR.
-* You may not copy another student's code. Collaboration is allowed for design discussion only.
-* AI coding assistants (e.g., GitHub Copilot, ChatGPT) are permitted, but you must understand and be able to explain every line of code you submit.
-* Submissions that cannot be run or explained during the demo will receive zero marks.
-
-Good luck — and remember, the best way to learn AI is to build something with it.
-

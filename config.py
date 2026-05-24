@@ -58,7 +58,7 @@ ADAPTIVE_THRESH_CONSTANT = 2
 #       filled_ratio = dark_pixels / total_pixels_in_bubble
 #       If ratio > threshold, the bubble is "filled".
 # 0.4 means 40% of the bubble area must be dark ink.
-BUBBLE_FILL_THRESHOLD = 0.4
+BUBBLE_FILL_THRESHOLD = 0.42
 
 # Number of questions per part
 QUESTIONS_PER_PART = 8
