@@ -1,0 +1,23 @@
+# =============================================================
+# Quiz Scanner & Grading System — Python Dependencies
+# =============================================================
+# Install all at once:  pip install -r requirements.txt
+# =============================================================
+
+# --- Image Processing ---
+opencv-python>=4.8.0          # Computer vision: preprocessing, contour detection, transforms
+numpy>=1.24.0                 # Array/matrix operations (OpenCV images are NumPy arrays)
+Pillow>=10.0.0                # Image format loading and conversion
+
+# --- QR Code ---
+pyzbar>=0.1.9                 # QR code detection and decoding
+
+# --- OCR (Optical Character Recognition) ---
+easyocr>=1.7.0                # Handwritten + printed text recognition
+
+# --- Data & Reports ---
+pandas>=2.0.0                 # Tabular data manipulation, CSV export
+openpyxl>=3.1.0               # Excel (.xlsx) file generation
+
+# --- Web UI ---
+streamlit>=1.28.0             # Browser-based UI for demo

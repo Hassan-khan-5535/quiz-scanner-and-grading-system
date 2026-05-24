@@ -1,0 +1,39 @@
+# =============================================================
+# Quiz Scanner — Git Ignore Rules
+# =============================================================
+
+# --- Python ---
+__pycache__/                  # Python bytecode cache (auto-generated)
+*.py[cod]                     # Compiled Python files
+*.pyo                         # Optimized bytecode
+*.egg-info/                   # Package metadata
+dist/                         # Distribution builds
+build/                        # Build artifacts
+
+# --- Virtual Environment ---
+venv/                         # Virtual environment folder
+env/                          # Alternative venv name
+.env                          # Environment variables (may contain secrets)
+
+# --- IDE Settings ---
+.vscode/                      # VS Code settings
+.idea/                        # PyCharm settings
+*.swp                         # Vim swap files
+*.swo                         # Vim swap files
+
+# --- OS Files ---
+.DS_Store                     # macOS folder metadata
+Thumbs.db                     # Windows thumbnail cache
+desktop.ini                   # Windows folder settings
+
+# --- Project Output ---
+output/results/*.csv          # Generated CSV reports (keep sample ones manually)
+output/results/*.xlsx         # Generated Excel reports
+output/debug/*                # Debug images (regenerated each run)
+
+# --- EasyOCR Models (large files) ---
+~/.EasyOCR/                   # Downloaded OCR models
+
+# --- Misc ---
+*.log                         # Log files
+*.tmp                         # Temporary files
