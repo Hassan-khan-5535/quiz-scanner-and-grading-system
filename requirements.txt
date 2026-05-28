@@ -13,7 +13,8 @@ Pillow>=10.0.0                # Image format loading and conversion
 pyzbar>=0.1.9                 # QR code detection and decoding
 
 # --- OCR (Optical Character Recognition) ---
-easyocr>=1.7.0                # Handwritten + printed text recognition
+google-generativeai>=0.8.0    # OCR using Google Gemini (Handwritten text)
+python-dotenv>=1.0.0          # Load environment variables for API Key
 
 # --- Data & Reports ---
 pandas>=2.0.0                 # Tabular data manipulation, CSV export

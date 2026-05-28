@@ -92,11 +92,13 @@ GRADE_BOUNDARIES = {
 # OCR SETTINGS
 # =============================================================
 
-# EasyOCR languages to use
-OCR_LANGUAGES = ["en"]
+from dotenv import load_dotenv
+# Load environment variables from .env file for the Gemini API Key
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
-# Whether to use GPU for OCR (False = CPU only, safer for most setups)
-OCR_USE_GPU = False
+# Google Gemini model to use for handwriting recognition
+GEMINI_MODEL_NAME = "gemini-1.5-flash"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 # =============================================================
 # LOGGING SETTINGS
