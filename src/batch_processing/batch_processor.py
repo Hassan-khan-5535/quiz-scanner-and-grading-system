@@ -53,8 +53,8 @@ def process_single_image(image_path: str, answer_key_cache: Dict[str, Any] = Non
         # 1. Preprocessing
         preprocessed = preprocess_image(image, debug_dir, name_no_ext)
         
-        # 2. Task 1: QR Decoder
-        answer_key = decode_answer_key(preprocessed["gray"])
+        # 2. Task 1: QR Decoder (use ORIGINAL un-warped image so QR isn't distorted)
+        answer_key = decode_answer_key(preprocessed["original_gray"])
         
         if answer_key is None:
             # Fallback to cache if available
@@ -64,7 +64,7 @@ def process_single_image(image_path: str, answer_key_cache: Dict[str, Any] = Non
             else:
                 return {"filename": filename, "error": "QR decode failed and no cache available"}
                 
-        # 3. Task 2: OCR Student Info
+        # 3. Task 2: OCR Student Info (use WARPED image for accurate header crop)
         student_info = extract_student_info(preprocessed["gray"])
         
         # 4. Task 3: Bubble Reader

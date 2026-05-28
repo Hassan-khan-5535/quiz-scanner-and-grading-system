@@ -117,8 +117,8 @@ with col_right:
             metric_cols[0].metric("Score", f"{grade['total_marks']}/{grade['max_marks']}")
             metric_cols[1].metric("Percentage", f"{grade['percentage']}%")
             metric_cols[2].metric("Grade", grade['grade'])
-            metric_cols[3].metric("Name", student.get("name", "Unknown"))
             
+            st.markdown(f"**Name:** {student.get('name', 'Unknown')}")
             st.markdown(f"**Registration #:** {student.get('reg_no', 'Unknown')}")
             
             # Breakdown Table

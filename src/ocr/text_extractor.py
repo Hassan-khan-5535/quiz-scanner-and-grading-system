@@ -58,7 +58,7 @@ def extract_student_info(image: np.ndarray) -> Dict[str, str]:
     prompt = (
         "You are an expert at reading handwritten student information from exam forms. "
         "Extract the student's Name and Registration Number (or Reg #) from the provided image crop. "
-        "The registration number usually looks like 'FA24-ISSE-016', 'SP26-BSE-005', etc. "
+        "The registration number usually looks like 'FA24-BSE-016', 'SP26-BSE-005', etc. "
         "Return ONLY a valid JSON object with the keys 'name' and 'reg_no'. "
         "If you cannot read a field clearly, or it is missing, set its value to 'Unknown'. "
         "Do not include any markdown formatting, just the raw JSON object."
@@ -85,7 +85,7 @@ def extract_student_info(image: np.ndarray) -> Dict[str, str]:
         result["name"] = extracted_data.get("name", "Unknown")
         result["reg_no"] = extracted_data.get("reg_no", "Unknown")
         
-        logger.info(f"Gemini OCR result → Name: {result['name']},  Reg#: {result['reg_no']}")
+        logger.info(f"Gemini OCR result -> Name: {result['name']},  Reg#: {result['reg_no']}")
         
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse JSON from Gemini response: {response.text if 'response' in locals() else 'No response'}")

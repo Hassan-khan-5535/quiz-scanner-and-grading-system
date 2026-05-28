@@ -97,7 +97,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
 # Google Gemini model to use for handwriting recognition
-GEMINI_MODEL_NAME = "gemini-1.5-flash"
+GEMINI_MODEL_NAME = "gemini-2.5-flash"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 # =============================================================
@@ -105,7 +105,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 # =============================================================
 
 # Log level: "DEBUG", "INFO", "WARNING", "ERROR"
-LOG_LEVEL = "INFO"
+LOG_LEVEL = "DEBUG"
 
 # Whether to save debug images at each processing step
 SAVE_DEBUG_IMAGES = True
