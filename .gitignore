@@ -37,3 +37,4 @@ output/debug/*                # Debug images (regenerated each run)
 # --- Misc ---
 *.log                         # Log files
 *.tmp                         # Temporary files
+.env 
