@@ -38,3 +38,7 @@ output/debug/*                # Debug images (regenerated each run)
 *.log                         # Log files
 *.tmp                         # Temporary files
 .env 
+output/ 
+samples/ 
+__pycache__/ 
+*.pyc 
