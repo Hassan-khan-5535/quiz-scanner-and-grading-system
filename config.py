@@ -63,11 +63,10 @@ ADAPTIVE_THRESH_CONSTANT = 2
 # TUNING:
 # - INCREASE if empty bubbles are being detected as filled (false positives)
 # - DECREASE if filled bubbles are being missed (false negatives)
-# - For Hough Circle detection: use 0.20-0.30 (printed circles ~0.10-0.20, filled ~0.25-0.90)
-# - For template detection: use 0.10-0.20
-# - Default: 0.22 (22% of bubble area must be dark)
-#   Combined with DOMINANCE_RATIO=2.0 to ensure filled bubble is clearly darker
-BUBBLE_FILL_THRESHOLD = 0.22
+# - For center-pixel detection: use 0.15-0.25 (empty center ~0.0, filled ~0.30-1.0)
+# - Default: 0.20 (20% fill score required)
+#   This catches light pencil marks while ignoring empty bubbles
+BUBBLE_FILL_THRESHOLD = 0.20
 
 # Minimum confidence score for a bubble to be considered filled
 # This is a weighted combination of fill ratio, darkness, and contour analysis
