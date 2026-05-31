@@ -72,18 +72,20 @@ with col_left:
             report_path = process_batch(SAMPLES_BATCH_DIR)
             
             if report_path and os.path.exists(report_path):
+                st.session_state["report_path"] = report_path
                 st.success("Batch processing complete!")
-                
-                # Provide a download button for the generated Excel file
-                with open(report_path, "rb") as file:
-                    btn = st.download_button(
-                        label="📥 Download Excel Report",
-                        data=file,
-                        file_name=os.path.basename(report_path),
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
             else:
                 st.error("Batch processing failed or no images found.")
+                
+    if "report_path" in st.session_state:
+        # Provide a download button for the generated Excel file
+        with open(st.session_state["report_path"], "rb") as file:
+            btn = st.download_button(
+                label="📥 Download Excel Report",
+                data=file,
+                file_name=os.path.basename(st.session_state["report_path"]),
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
 with col_right:
     if uploaded_file is not None:

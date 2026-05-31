@@ -10,6 +10,13 @@ WHY:
     - Avoids "magic numbers" buried in code
     - Easy to tune parameters during testing
     - Easy to explain in viva: "All settings are in config.py"
+
+TUNING GUIDE:
+    If bubble detection is not working:
+    1. Enable SAVE_DEBUG_IMAGES = True
+    2. Check debug images in output/debug/
+    3. Adjust BUBBLE_FILL_THRESHOLD up/down if bubbles are missed/falsely detected
+    4. Adjust DOMINANCE_RATIO if multiple bubbles are being detected
 """
 
 import os
@@ -17,9 +24,6 @@ import os
 # =============================================================
 # PROJECT PATHS
 # =============================================================
-# os.path.dirname(__file__) gives us the folder where THIS file lives
-# This makes paths work regardless of where you run the script from
-
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 # Input/Output directories
@@ -54,11 +58,32 @@ ADAPTIVE_THRESH_CONSTANT = 2
 # =============================================================
 
 # Minimum fill ratio to consider a bubble as "filled"
-# WHY: We count dark pixels inside each bubble circle.
-#       filled_ratio = dark_pixels / total_pixels_in_bubble
-#       If ratio > threshold, the bubble is "filled".
-# 0.4 means 40% of the bubble area must be dark ink.
-BUBBLE_FILL_THRESHOLD = 0.42
+# Range: 0.0 to 1.0 (0% to 100% of bubble area)
+# 
+# TUNING:
+# - INCREASE if empty bubbles are being detected as filled (false positives)
+# - DECREASE if filled bubbles are being missed (false negatives)
+# - Typical range: 0.25 to 0.50
+# - Default: 0.35 (35% of bubble area must be dark)
+BUBBLE_FILL_THRESHOLD = 0.35
+
+# Minimum confidence score for a bubble to be considered filled
+# This is a weighted combination of fill ratio, darkness, and contour analysis
+# Range: 0.0 to 1.0
+# 
+# TUNING:
+# - INCREASE for stricter detection (fewer false positives)
+# - DECREASE for more sensitive detection (fewer false negatives)
+# - Default: 0.35
+BUBBLE_CONFIDENCE_THRESHOLD = 0.35
+
+# Dominance ratio - filled bubble must be this many times darker than others
+# 
+# TUNING:
+# - INCREASE if partially filled bubbles are being detected
+# - DECREASE if lightly filled bubbles are being missed
+# - Default: 1.5 (filled bubble is 1.5x darker than average of others)
+DOMINANCE_RATIO = 1.5
 
 # Number of questions per part
 QUESTIONS_PER_PART = 8
@@ -105,7 +130,29 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 # =============================================================
 
 # Log level: "DEBUG", "INFO", "WARNING", "ERROR"
-LOG_LEVEL = "DEBUG"
+# DEBUG: Shows detailed bubble fill values and detection logic
+# INFO: Shows processing progress and final results
+# WARNING: Only shows warnings and errors
+LOG_LEVEL = "INFO"
 
 # Whether to save debug images at each processing step
+# Set to True when tuning or troubleshooting
 SAVE_DEBUG_IMAGES = True
+
+# =============================================================
+# TEMPLATE COORDINATES (for reference)
+# =============================================================
+# These are calibrated for 1240x1755 scanned sheets
+# Only change if your quiz sheet template is different
+
+TEMPLATE_WIDTH = 1240
+TEMPLATE_HEIGHT = 1755
+
+# Part 1 bubble X coordinates (left side) - columns A, B, C, D
+PART1_X_COORDS = [289, 369, 449, 535]
+
+# Part 2 bubble X coordinates (right side) - columns A, B, C, D  
+PART2_X_COORDS = [721, 799, 877, 961]
+
+# Question row Y coordinates (Q01-Q08)
+ROW_Y_COORDS = [398, 432, 466, 500, 534, 568, 604, 638]

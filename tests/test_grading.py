@@ -31,6 +31,7 @@ def test_perfect_score():
     assert report["correct"] == 3
     assert report["incorrect"] == 0
     assert report["unattempted"] == 0
+    assert report["invalid"] == 0
     assert report["total_marks"] == 3.0
     assert report["percentage"] == 100.0
     assert report["grade"] == "A"
@@ -55,8 +56,9 @@ def test_mixed_score():
     report = grade_quiz(student_answers, answer_key)
     
     assert report["correct"] == 1
-    assert report["incorrect"] == 2  # 1 wrong + 1 invalid
+    assert report["incorrect"] == 1  # 1 wrong answer
     assert report["unattempted"] == 1
+    assert report["invalid"] == 1    # 1 invalid (multiple bubbles)
     assert report["total_marks"] == 1.0
     assert report["percentage"] == 25.0
     assert report["grade"] == "F"
@@ -74,3 +76,45 @@ def test_letter_grade_boundaries():
     assert calculate_letter_grade(75.0) == "C"
     assert calculate_letter_grade(65.0) == "D"
     assert calculate_letter_grade(59.9) == "F"
+
+
+def test_numeric_answer_conversion():
+    """Test that numeric answers (1,2,3,4) are converted to letters (A,B,C,D)."""
+    answer_key = {
+        "part1": {"Q01": "A", "Q02": "B", "Q03": "C", "Q04": "D"}
+    }
+    
+    student_answers = {
+        "part1": {
+            "Q01": "1",  # Should convert to A
+            "Q02": 2,    # Should convert to B
+            "Q03": "3",  # Should convert to C
+            "Q04": 4     # Should convert to D
+        }
+    }
+    
+    report = grade_quiz(student_answers, answer_key)
+    
+    assert report["correct"] == 4
+    assert report["incorrect"] == 0
+    assert report["total_marks"] == 4.0
+    assert report["percentage"] == 100.0
+
+
+def test_case_insensitive_comparison():
+    """Test that answer comparison is case-insensitive."""
+    answer_key = {
+        "part1": {"Q01": "A", "Q02": "B"}
+    }
+    
+    student_answers = {
+        "part1": {
+            "Q01": "a",  # lowercase
+            "Q02": "B"   # uppercase
+        }
+    }
+    
+    report = grade_quiz(student_answers, answer_key)
+    
+    assert report["correct"] == 2
+    assert report["incorrect"] == 0
