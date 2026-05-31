@@ -63,9 +63,10 @@ ADAPTIVE_THRESH_CONSTANT = 2
 # TUNING:
 # - INCREASE if empty bubbles are being detected as filled (false positives)
 # - DECREASE if filled bubbles are being missed (false negatives)
-# - Typical range: 0.25 to 0.50
-# - Default: 0.35 (35% of bubble area must be dark)
-BUBBLE_FILL_THRESHOLD = 0.35
+# - Typical range: 0.10 to 0.30
+# - Default: 0.12 (12% of bubble area must be dark)
+#   Lower threshold catches light pencil marks better
+BUBBLE_FILL_THRESHOLD = 0.12
 
 # Minimum confidence score for a bubble to be considered filled
 # This is a weighted combination of fill ratio, darkness, and contour analysis
@@ -122,7 +123,8 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
 # Google Gemini model to use for handwriting recognition
-GEMINI_MODEL_NAME = "gemini-2.5-flash"
+# Use gemini-1.5-flash for fast, accurate OCR
+GEMINI_MODEL_NAME = "gemini-1.5-flash"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 # =============================================================
@@ -156,3 +158,40 @@ PART2_X_COORDS = [721, 799, 877, 961]
 
 # Question row Y coordinates (Q01-Q08)
 ROW_Y_COORDS = [398, 432, 466, 500, 534, 568, 604, 638]
+
+# =============================================================
+# HOUGH CIRCLE DETECTION SETTINGS
+# =============================================================
+# Hough Circle Transform parameters for dynamic bubble detection
+# Use this when template coordinates don't match or for calibration
+
+# Enable Hough Circle detection instead of template-based detection
+# Set to True when template coordinates don't match your bubble sheet
+# Hough mode detects bubbles dynamically using circle detection
+USE_HOUGH_CIRCLES = True
+
+# Gaussian blur kernel size for Hough Circle preprocessing (must be odd)
+HOUGH_BLUR_KERNEL = 5
+
+# dp: Inverse ratio of the accumulator resolution to the image resolution
+# 1.0 = same resolution, 1.2 = faster but less accurate, 2.0 = much faster
+HOUGH_DP = 1.2
+
+# minDist: Minimum distance between detected circle centers
+# Prevents detecting multiple circles for the same bubble
+HOUGH_MIN_DIST = 25
+
+# param1: Higher threshold for Canny edge detector
+HOUGH_PARAM1 = 50
+
+# param2: Accumulator threshold for circle centers (lower = more circles detected)
+HOUGH_PARAM2 = 22
+
+# minRadius: Minimum bubble radius in pixels
+HOUGH_MIN_RADIUS = 10
+
+# maxRadius: Maximum bubble radius in pixels
+HOUGH_MAX_RADIUS = 22
+
+# Minimum fill ratio to consider a Hough-detected bubble as "filled"
+HOUGH_FILL_THRESHOLD = 0.4

@@ -111,37 +111,139 @@ with col_right:
             
             st.success("Quiz graded successfully!")
             
-            # Metadata row
-            st.subheader(f"Quiz Info: {key.get('quiz_title', 'Unknown')} (Set {key.get('set', '?')})")
+            # --- ANSWER KEY SECTION (from QR Code) ---
+            with st.expander("📱 QR Code Answer Key", expanded=True):
+                st.subheader(f"Quiz: {key.get('quiz_title', 'Unknown')} (Set {key.get('set', '?')})")
+                
+                # Create columns for Part-I and Part-II answer keys
+                ak_col1, ak_col2 = st.columns(2)
+                
+                with ak_col1:
+                    st.markdown("**Part-I Answer Key**")
+                    part1_answers = key.get('part1', {})
+                    if part1_answers:
+                        ak_data1 = []
+                        for i in range(1, 9):
+                            q_num = f"Q{str(i).zfill(2)}"
+                            ak_data1.append({
+                                "Question": q_num,
+                                "Answer": part1_answers.get(q_num, "—")
+                            })
+                        st.table(pd.DataFrame(ak_data1))
+                    else:
+                        st.info("No Part-I answers found")
+                
+                with ak_col2:
+                    st.markdown("**Part-II Answer Key**")
+                    part2_answers = key.get('part2', {})
+                    if part2_answers:
+                        ak_data2 = []
+                        for i in range(1, 9):
+                            q_num = f"Q{str(i).zfill(2)}"
+                            ak_data2.append({
+                                "Question": q_num,
+                                "Answer": part2_answers.get(q_num, "—")
+                            })
+                        st.table(pd.DataFrame(ak_data2))
+                    else:
+                        st.info("No Part-II answers found")
             
-            # Score metrics
+            st.divider()
+            
+            # --- STUDENT INFO SECTION ---
+            st.subheader("👤 Student Information")
+            info_col1, info_col2 = st.columns(2)
+            with info_col1:
+                st.markdown(f"**Name:** {student.get('name', 'Unknown')}")
+            with info_col2:
+                st.markdown(f"**Registration #:** {student.get('reg_no', 'Unknown')}")
+            
+            st.divider()
+            
+            # --- SCORE METRICS SECTION ---
+            st.subheader("📊 Score Summary")
             metric_cols = st.columns(4)
             metric_cols[0].metric("Score", f"{grade['total_marks']}/{grade['max_marks']}")
             metric_cols[1].metric("Percentage", f"{grade['percentage']}%")
             metric_cols[2].metric("Grade", grade['grade'])
+            metric_cols[3].metric("Correct", f"{grade['correct']}/{grade['questions_processed']}")
             
-            st.markdown(f"**Name:** {student.get('name', 'Unknown')}")
-            st.markdown(f"**Registration #:** {student.get('reg_no', 'Unknown')}")
+            # Show summary counts
+            summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
+            summary_col1.metric("✓ Correct", grade['correct'])
+            summary_col2.metric("✗ Incorrect", grade['incorrect'])
+            summary_col3.metric("— Unattempted", grade['unattempted'])
+            summary_col4.metric("⚠ Invalid", grade['invalid'])
             
-            # Breakdown Table
-            st.subheader("Question Breakdown")
+            st.divider()
             
-            # Convert our breakdown dict into a pandas DataFrame for nice display
+            # --- QUESTION BREAKDOWN SECTION ---
+            st.subheader("📝 Question Breakdown")
+            
+            # Convert breakdown dict into a pandas DataFrame for nice display
             breakdown = grade["breakdown"]
             
             # Create a combined list of dictionaries for the table
             table_data = []
             for i in range(1, 9):
                 q_num = f"Q{str(i).zfill(2)}"
+                # Get student answer
+                student_ans = "—"
+                for part in ["part1", "part2"]:
+                    if part in result.get("student_answers", {}):
+                        ans = result["student_answers"][part].get(q_num)
+                        if ans:
+                            student_ans = ans
+                            break
+                
                 table_data.append({
                     "Question": q_num,
                     "Part-I": breakdown.get("part1", {}).get(q_num, ""),
-                    "Part-II": breakdown.get("part2", {}).get(q_num, "")
+                    "Part-II": breakdown.get("part2", {}).get(q_num, ""),
+                    "Student Ans": student_ans
                 })
                 
             df = pd.DataFrame(table_data)
             st.table(df)
             
             st.caption("Legend: ✓ = Correct | ✗ = Incorrect | — = Unattempted | ⚠ = Invalid (Multiple Filled)")
+            
+            # --- STUDENT ANSWERS SECTION ---
+            with st.expander("📝 Student Answers (Detected Bubbles)", expanded=False):
+                ans_col1, ans_col2 = st.columns(2)
+                
+                with ans_col1:
+                    st.markdown("**Part-I Answers**")
+                    part1_student = result.get("student_answers", {}).get("part1", {})
+                    if part1_student:
+                        ans_data1 = []
+                        for i in range(1, 9):
+                            q_num = f"Q{str(i).zfill(2)}"
+                            ans = part1_student.get(q_num, "—")
+                            # Get correct answer for comparison
+                            correct = key.get('part1', {}).get(q_num, "—")
+                            ans_data1.append({
+                                "Question": q_num,
+                                "Student": ans if ans else "—",
+                                "Correct": correct
+                            })
+                        st.table(pd.DataFrame(ans_data1))
+                
+                with ans_col2:
+                    st.markdown("**Part-II Answers**")
+                    part2_student = result.get("student_answers", {}).get("part2", {})
+                    if part2_student:
+                        ans_data2 = []
+                        for i in range(1, 9):
+                            q_num = f"Q{str(i).zfill(2)}"
+                            ans = part2_student.get(q_num, "—")
+                            # Get correct answer for comparison
+                            correct = key.get('part2', {}).get(q_num, "—")
+                            ans_data2.append({
+                                "Question": q_num,
+                                "Student": ans if ans else "—",
+                                "Correct": correct
+                            })
+                        st.table(pd.DataFrame(ans_data2))
     else:
         st.info("👈 Upload a quiz sheet on the left to see the AI in action.")

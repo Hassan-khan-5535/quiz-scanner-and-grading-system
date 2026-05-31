@@ -12,7 +12,6 @@ IMPROVEMENTS:
     - Case-insensitive comparison
     - Flexible answer key structures
     - Detailed error reporting
-    - Support for partial credit
     - Comprehensive logging
 """
 
@@ -44,19 +43,28 @@ def normalize_answer(answer: Any) -> Optional[str]:
     Handles:
     - None/UNATTEMPTED -> None
     - INVALID -> "INVALID"
-    - String answers -> Uppercase single letter
+    - String answers -> Uppercase single letter (A, B, C, D)
     - Numbers -> Converted to letters (1->A, 2->B, etc.)
     """
-    if answer is None or answer == UNATTEMPTED:
+    if answer is None:
         return UNATTEMPTED
     
-    if answer == INVALID or str(answer).upper() == "INVALID":
+    # Handle INVALID constant
+    if answer == INVALID:
         return INVALID
     
     # Convert to string and clean
     answer_str = str(answer).strip().upper()
     
-    # Remove any extra characters, keep only first letter if it's A-D
+    # Handle empty string
+    if not answer_str or answer_str == "NONE" or answer_str == "NULL":
+        return UNATTEMPTED
+    
+    # Check for invalid marker
+    if answer_str == "INVALID" or answer_str == "⚠":
+        return INVALID
+    
+    # Remove any extra characters, keep only valid option letters
     answer_str = re.sub(r'[^A-D0-9]', '', answer_str)
     
     if not answer_str:
@@ -69,7 +77,7 @@ def normalize_answer(answer: Any) -> Optional[str]:
             return OPTION_LABELS[num - 1]  # 1->A, 2->B, etc.
         return INVALID
     
-    # Single letter answer
+    # Single letter answer - validate it's A-D
     if answer_str[0] in OPTION_LABELS:
         return answer_str[0]
     
@@ -82,11 +90,19 @@ def parse_answer_key(answer_key: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
     """
     Parse and normalize the answer key into a standard format.
     
-    Handles various answer key formats:
-    - Standard: {"part1": {"Q01": "A", ...}, "part2": {...}}
-    - Flat: {"Q01": "A", "Q02": "B", ...}
-    - With metadata: {"quiz_title": "...", "set": "A", "part1": {...}}
-    - QR payload format with nested structures
+    Expected input format from QR decoder:
+    {
+        "quiz_title": "AI Quiz SP2026",
+        "set": "C",
+        "part1": {"Q01": "D", "Q02": "A", ...},
+        "part2": {"Q01": "C", "Q02": "D", ...}
+    }
+    
+    Returns:
+    {
+        "part1": {"Q01": "D", "Q02": "A", ...},
+        "part2": {"Q01": "C", "Q02": "D", ...}
+    }
     """
     normalized = {"part1": {}, "part2": {}}
     
@@ -94,40 +110,52 @@ def parse_answer_key(answer_key: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
         logger.error("Empty answer key provided")
         return normalized
     
-    # Check if it's the QR payload format with nested structure
+    logger.debug(f"Parsing answer key: {answer_key}")
+    
+    # Check for standard format with part1 and part2 keys
     for part in PART_LABELS:
         if part in answer_key:
             part_data = answer_key[part]
             if isinstance(part_data, dict):
                 for q_label, answer in part_data.items():
-                    normalized[part][q_label] = normalize_answer(answer)
+                    normalized_answer = normalize_answer(answer)
+                    if normalized_answer:  # Only add if valid
+                        normalized[part][q_label] = normalized_answer
+                        logger.debug(f"  {part} {q_label} = {normalized_answer}")
     
-    # If no parts found, try to infer from flat structure
+    # If no parts found in expected format, try to infer from flat structure
     if not normalized["part1"] and not normalized["part2"]:
-        # Try to organize flat structure into parts
+        logger.warning("No standard part structure found, trying flat format...")
         temp_answers = {}
         for key, value in answer_key.items():
             # Skip metadata keys
-            if key in ["quiz_title", "set", "class", "subject", "title"]:
+            if key in ["quiz_title", "set", "class", "subject", "title", "quiz_set"]:
                 continue
             
-            # Check if it looks like a question key
-            if re.match(r'^Q?\d+$', str(key), re.IGNORECASE):
-                q_label = f"Q{int(re.search(r'\d+', str(key)).group()):02d}"
+            # Check if it looks like a question key (Q01, Q1, 1, etc.)
+            q_match = re.match(r'^Q?(\d+)$', str(key), re.IGNORECASE)
+            if q_match:
+                q_num = int(q_match.group(1))
+                q_label = f"Q{q_num:02d}"
                 temp_answers[q_label] = normalize_answer(value)
         
-        # Split into parts (Q01-Q08 -> part1, Q09-Q16 -> part2, etc.)
+        # Split into parts (Q01-Q08 -> part1, Q09-Q16 -> part2)
         for q_label, answer in temp_answers.items():
             q_num = int(re.search(r'\d+', q_label).group())
-            if q_num <= QUESTIONS_PER_PART:
+            if 1 <= q_num <= QUESTIONS_PER_PART:
                 normalized["part1"][q_label] = answer
-            else:
+            elif QUESTIONS_PER_PART < q_num <= QUESTIONS_PER_PART * 2:
                 # Map Q09-Q16 to Q01-Q08 in part2
                 adjusted_label = f"Q{(q_num - QUESTIONS_PER_PART):02d}"
                 normalized["part2"][adjusted_label] = answer
     
-    logger.info(f"Parsed answer key: Part1={len(normalized['part1'])} questions, "
-                f"Part2={len(normalized['part2'])} questions")
+    part1_count = len(normalized["part1"])
+    part2_count = len(normalized["part2"])
+    logger.info(f"Parsed answer key: Part1={part1_count} questions, Part2={part2_count} questions")
+    
+    if part1_count == 0 and part2_count == 0:
+        logger.error("Failed to parse any answers from answer key!")
+        logger.error(f"Answer key content: {answer_key}")
     
     return normalized
 
@@ -137,6 +165,9 @@ def calculate_letter_grade(percentage: float) -> str:
     Converts a percentage score into a standard Letter Grade.
     Uses the GRADE_BOUNDARIES defined in config.py.
     """
+    # Ensure percentage is within valid range
+    percentage = max(0.0, min(100.0, percentage))
+    
     # Sort boundaries in descending order
     sorted_boundaries = sorted(GRADE_BOUNDARIES.items(), key=lambda x: x[1], reverse=True)
     
@@ -161,8 +192,10 @@ def compare_answers(student_ans: Optional[str], correct_ans: Optional[str]) -> T
     student_norm = normalize_answer(student_ans)
     correct_norm = normalize_answer(correct_ans)
     
+    logger.debug(f"Comparing: student='{student_norm}' vs correct='{correct_norm}'")
+    
     # Case 1: Unattempted
-    if student_norm == UNATTEMPTED:
+    if student_norm is None:
         return SYMBOL_UNATTEMPTED, MARKS_UNATTEMPTED, "unattempted"
     
     # Case 2: Invalid (multiple bubbles or unreadable)
@@ -200,6 +233,23 @@ def grade_quiz(student_answers: Dict[str, Dict[str, str]],
     # Parse and normalize answer key
     normalized_key = parse_answer_key(answer_key)
     
+    # Validate that we have an answer key
+    if not normalized_key["part1"] and not normalized_key["part2"]:
+        logger.error("No valid answer key found! Cannot grade.")
+        return {
+            "correct": 0,
+            "incorrect": 0,
+            "unattempted": 0,
+            "invalid": 0,
+            "total_marks": 0,
+            "max_marks": 0,
+            "percentage": 0,
+            "grade": "F",
+            "breakdown": {"part1": {}, "part2": {}},
+            "questions_processed": 0,
+            "error": "No valid answer key found"
+        }
+    
     # Initialize counters
     correct_count = 0
     incorrect_count = 0
@@ -216,11 +266,11 @@ def grade_quiz(student_answers: Dict[str, Dict[str, str]],
     
     # Process each part
     for part in PART_LABELS:
-        student_part = student_answers.get(part, {})
+        student_part = student_answers.get(part, {}) if student_answers else {}
         key_part = normalized_key.get(part, {})
         
         if not key_part:
-            logger.warning(f"No answer key found for {part}")
+            logger.warning(f"No answer key found for {part}, skipping...")
             continue
         
         logger.info(f"Grading {part}...")
@@ -228,7 +278,7 @@ def grade_quiz(student_answers: Dict[str, Dict[str, str]],
         # Process each question in the answer key
         for q_label in sorted(key_part.keys()):
             correct_ans = key_part.get(q_label)
-            student_ans = student_part.get(q_label, UNATTEMPTED)
+            student_ans = student_part.get(q_label, UNATTEMPTED) if student_part else UNATTEMPTED
             
             questions_processed += 1
             max_possible_marks += MARKS_PER_CORRECT
@@ -254,9 +304,10 @@ def grade_quiz(student_answers: Dict[str, Dict[str, str]],
                         f"Result={status}, Marks={marks:+g}")
         
         # Handle questions in student answers but not in key (extra questions)
-        for q_label in student_part:
-            if q_label not in key_part:
-                logger.warning(f"  {q_label} in student answers but not in answer key")
+        if student_part:
+            for q_label in student_part:
+                if q_label not in key_part:
+                    logger.warning(f"  {q_label} in student answers but not in answer key")
     
     # Calculate percentage
     if max_possible_marks > 0:
@@ -329,13 +380,15 @@ def generate_detailed_report(student_answers: Dict[str, Dict[str, str]],
         lines.append(f"\n{part.upper()}:")
         lines.append("-" * 40)
         
-        student_part = student_answers.get(part, {})
+        student_part = student_answers.get(part, {}) if student_answers else {}
         key_part = normalized_key.get(part, {})
         breakdown_part = grade_report['breakdown'].get(part, {})
         
         for q_label in sorted(key_part.keys()):
             correct = key_part.get(q_label, "?")
-            student = student_part.get(q_label, UNATTEMPTED) or "—"
+            student = student_part.get(q_label, UNATTEMPTED) if student_part else UNATTEMPTED
+            if student is None:
+                student = "—"
             symbol = breakdown_part.get(q_label, "?")
             
             status_text = {
