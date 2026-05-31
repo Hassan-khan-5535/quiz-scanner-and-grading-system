@@ -338,47 +338,32 @@ def _find_bubble_near(bubbles: List[Tuple[int, int, int]],
     return best_bubble
 
 
-def _read_part_hough(gray: np.ndarray, bubbles: List[Tuple[int, int, int]], 
-                     x_range: Tuple[int, int], part_name: str,
-                     x_cols: List[int], scale_x: float = 1.0, scale_y: float = 1.0) -> Dict[str, str]:
+def _read_part_calibrated(gray: np.ndarray, bubbles: List[Tuple[int, int, int]], 
+                          x_cols: List[int], y_rows: List[int], 
+                          part_name: str) -> Dict[str, str]:
     """
-    Read answers using Hough-detected bubbles aligned to template coordinates.
+    Read answers using calibrated coordinates.
     
-    Instead of blind clustering, this uses template X coordinates to identify
-    which option (A/B/C/D) each bubble corresponds to.
+    Uses the actual detected bubble positions (x_cols, y_rows) to read fill levels.
     """
     answers = {}
     
-    # Filter bubbles to this part's X range (scaled)
-    scaled_range = (int(x_range[0] * scale_x), int(x_range[1] * scale_x))
-    part_bubbles = [b for b in bubbles if scaled_range[0] <= b[0] <= scaled_range[1]]
+    logger.info(f"Processing {part_name} with calibrated coordinates...")
     
-    logger.info(f"{part_name}: Found {len(part_bubbles)} bubbles in range")
-    
-    logger.info(f"Processing {part_name} with template-aligned Hough detection...")
-    
-    for q_idx, cy_template in enumerate(ROW_Y):
+    for q_idx, cy in enumerate(y_rows):
         q_label = f"Q{str(q_idx + 1).zfill(2)}"
         
-        # Scale Y coordinate to actual image size
-        cy = int(cy_template * scale_y)
-        
         fill_ratios = []
-        for opt_idx, cx_template in enumerate(x_cols):
-            # Scale X coordinate to actual image size
-            cx = int(cx_template * scale_x)
-            
-            # Find a detected bubble near this template position
-            bubble = _find_bubble_near(part_bubbles, cx, cy, search_radius=35)
+        for opt_idx, cx in enumerate(x_cols):
+            # Find a detected bubble near this calibrated position
+            bubble = _find_bubble_near(bubbles, cx, cy, search_radius=40)
             
             if bubble:
                 bx, by, br = bubble
                 fill_ratio = _calculate_hough_fill(gray, bx, by, br)
-                logger.debug(f"  {q_label} {OPTION_LABELS[opt_idx]}: found bubble at ({bx},{by}), fill={fill_ratio:.2f}")
             else:
-                # No bubble detected near this position - use template position with default radius
+                # No bubble detected - fall back to template position
                 fill_ratio = _calculate_bubble_fill(gray, cx, cy, BUBBLE_RADIUS)
-                logger.debug(f"  {q_label} {OPTION_LABELS[opt_idx]}: no bubble found, using template pos")
             
             fill_ratios.append(fill_ratio)
         
@@ -422,6 +407,91 @@ def _read_part(gray: np.ndarray, x_cols: List[int], part_name: str,
     return answers
 
 
+def _calibrate_from_bubbles(bubbles: List[Tuple[int, int, int]], 
+                             part_x_cols: List[int],
+                             scale_x: float) -> List[int]:
+    """
+    Calibrate X coordinates by finding the actual bubble centers.
+    
+    Groups bubbles by X position and finds the median X for each option column.
+    """
+    if not bubbles:
+        return [int(x * scale_x) for x in part_x_cols]
+    
+    # Sort bubbles by X
+    bubbles_sorted = sorted(bubbles, key=lambda b: b[0])
+    
+    # Group bubbles into 4 columns using expected positions as guides
+    columns = [[] for _ in range(4)]
+    
+    for bubble in bubbles:
+        bx = bubble[0]
+        # Find closest expected column
+        distances = [abs(bx - int(x * scale_x)) for x in part_x_cols]
+        closest_col = distances.index(min(distances))
+        if min(distances) < 50:  # Within 50 pixels
+            columns[closest_col].append(bx)
+    
+    # Calculate median X for each column
+    calibrated = []
+    for i, col in enumerate(columns):
+        if col:
+            calibrated.append(int(np.median(col)))
+        else:
+            # Fallback to scaled template
+            calibrated.append(int(part_x_cols[i] * scale_x))
+    
+    return calibrated
+
+
+def _calibrate_y_from_bubbles(bubbles: List[Tuple[int, int, int]], 
+                               scale_y: float,
+                               expected_rows: int = 8) -> List[int]:
+    """
+    Calibrate Y coordinates by finding the actual row positions.
+    
+    Groups bubbles by Y position using k-means-like clustering.
+    Expects a specific number of rows (8 for questions).
+    """
+    if len(bubbles) < expected_rows * 2:
+        logger.warning(f"Not enough bubbles ({len(bubbles)}) for Y calibration. Using template.")
+        return [int(y * scale_y) for y in ROW_Y]
+    
+    # Get all Y coordinates
+    y_coords = np.array([b[1] for b in bubbles])
+    
+    # Sort Y values
+    y_sorted = np.sort(y_coords)
+    
+    # Use template Y positions as initial guess (scaled)
+    template_y = np.array([int(y * scale_y) for y in ROW_Y])
+    
+    # Find actual Y positions by looking for clusters near template positions
+    calibrated_y = []
+    for ty in template_y:
+        # Find bubbles within 50 pixels of template Y
+        nearby = y_sorted[(y_sorted >= ty - 50) & (y_sorted <= ty + 50)]
+        if len(nearby) >= 4:  # At least 4 bubbles (one per option)
+            # Use the median of nearby bubbles
+            calibrated_y.append(int(np.median(nearby)))
+        else:
+            # Fall back to template
+            calibrated_y.append(ty)
+    
+    # Verify we have the right number of rows with reasonable spacing
+    if len(calibrated_y) == expected_rows:
+        # Check spacing between rows (should be roughly consistent)
+        spacings = [calibrated_y[i+1] - calibrated_y[i] for i in range(len(calibrated_y)-1)]
+        avg_spacing = np.mean(spacings)
+        
+        if 20 <= avg_spacing <= 50:  # Reasonable row spacing
+            logger.info(f"Y calibration successful: avg row spacing = {avg_spacing:.1f}px")
+            return calibrated_y
+    
+    logger.warning(f"Y calibration failed validation. Using template.")
+    return [int(y * scale_y) for y in ROW_Y]
+
+
 def read_bubble_sheet(color_image: np.ndarray,
                       thresh_image: np.ndarray = None,
                       use_hough: bool = None) -> Dict[str, Dict[str, str]]:
@@ -444,7 +514,7 @@ def read_bubble_sheet(color_image: np.ndarray,
     hough_mode = USE_HOUGH_CIRCLES if use_hough is None else use_hough
     
     if hough_mode:
-        logger.info("Using Hough Circle Transform for bubble detection")
+        logger.info("Using Hough Circle Transform with auto-calibration")
     else:
         logger.info("Using template-based bubble detection with coordinate scaling")
     
@@ -463,21 +533,38 @@ def read_bubble_sheet(color_image: np.ndarray,
     
     if h != TEMPLATE_H or w != TEMPLATE_W:
         logger.info(f"Image dimensions ({w}x{h}) differ from template ({TEMPLATE_W}x{TEMPLATE_H})")
-        logger.info(f"Using scale factors: x={scale_x:.3f}, y={scale_y:.3f}")
+        logger.info(f"Base scale factors: x={scale_x:.3f}, y={scale_y:.3f}")
     
     # Process both parts using selected method
     if hough_mode:
         # Detect all bubbles using Hough Transform
         all_bubbles = _detect_bubbles_hough(gray)
         
-        # Define X ranges for each part (template coordinates)
-        mid_x = TEMPLATE_W // 2
-        part1_range = (0, mid_x - 50)
-        part2_range = (mid_x + 50, TEMPLATE_W)
+        # Define X ranges for each part (scaled)
+        mid_x_scaled = int((TEMPLATE_W // 2) * scale_x)
+        margin = int(50 * scale_x)
         
-        # Use Hough detection aligned to template coordinates
-        part1 = _read_part_hough(gray, all_bubbles, part1_range, "Part-I", PART1_X, scale_x, scale_y)
-        part2 = _read_part_hough(gray, all_bubbles, part2_range, "Part-II", PART2_X, scale_x, scale_y)
+        # Filter bubbles by part
+        part1_bubbles = [b for b in all_bubbles if b[0] < mid_x_scaled - margin]
+        part2_bubbles = [b for b in all_bubbles if b[0] > mid_x_scaled + margin]
+        
+        logger.info(f"Part-I: {len(part1_bubbles)} bubbles, Part-II: {len(part2_bubbles)} bubbles")
+        
+        # Calibrate coordinates from detected bubbles
+        calibrated_p1_x = _calibrate_from_bubbles(part1_bubbles, PART1_X, scale_x)
+        calibrated_p2_x = _calibrate_from_bubbles(part2_bubbles, PART2_X, scale_x)
+        
+        # Calibrate Y separately for each part (they might have slight offset)
+        calibrated_p1_y = _calibrate_y_from_bubbles(part1_bubbles, scale_y)
+        calibrated_p2_y = _calibrate_y_from_bubbles(part2_bubbles, scale_y)
+        
+        logger.info(f"Calibrated Part-I X: {calibrated_p1_x}")
+        logger.info(f"Calibrated Part-II X: {calibrated_p2_x}")
+        logger.info(f"Calibrated Y rows: {calibrated_y}")
+        
+        # Use calibrated coordinates
+        part1 = _read_part_calibrated(gray, part1_bubbles, calibrated_p1_x, calibrated_y, "Part-I")
+        part2 = _read_part_calibrated(gray, part2_bubbles, calibrated_p2_x, calibrated_y, "Part-II")
     else:
         # Use template-based detection with scaled coordinates
         part1 = _read_part(gray, PART1_X, "Part-I", scale_x, scale_y)
