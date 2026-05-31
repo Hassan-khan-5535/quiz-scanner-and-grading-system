@@ -81,6 +81,9 @@ quiz-scanner/
 ## 📸 Demo
 *(Screenshots will be added here upon completion)*
 
+![alt text](image.png)
+
+
 ---
 **Course:** Artificial Intelligence (BSE-4A)
 **Semester:** SP 2026
