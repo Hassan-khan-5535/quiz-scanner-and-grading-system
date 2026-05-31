@@ -122,11 +122,11 @@ def _detect_answer(fill_ratios: List[float], q_label: str) -> str:
     """
     Determine which bubble (if any) is filled based on fill ratios.
     
-    Logic:
-    1. Find the bubble with highest fill ratio
-    2. Check if it exceeds the minimum threshold
-    3. Check if it dominates other bubbles sufficiently
-    4. Return answer label, UNATTEMPTED, or INVALID
+    Smart detection that handles:
+    - Printed circle outlines (low fill, ~0.10-0.30)
+    - Lightly filled bubbles (medium fill, ~0.25-0.50)  
+    - Dark filled bubbles (high fill, ~0.50-1.00)
+    - Multiple filled bubbles (INVALID)
     """
     # Log fill ratios for debugging
     debug_info = " | ".join([
@@ -138,40 +138,48 @@ def _detect_answer(fill_ratios: List[float], q_label: str) -> str:
     max_fill = max(fill_ratios)
     max_idx = fill_ratios.index(max_fill)
     
-    # If no bubble has meaningful fill, it's unattempted
-    if max_fill < BUBBLE_FILL_THRESHOLD:
-        logger.info(f"  {q_label}: UNATTEMPTED (max fill {max_fill:.2f} < threshold {BUBBLE_FILL_THRESHOLD})")
-        return UNATTEMPTED
-    
-    # Calculate average of other bubbles
+    # Calculate statistics of all bubbles
     other_fills = [fill_ratios[i] for i in range(len(fill_ratios)) if i != max_idx]
     other_avg = sum(other_fills) / len(other_fills) if other_fills else 0
+    other_max = max(other_fills) if other_fills else 0
     
-    # Check if this bubble dominates others
-    if other_avg < 0.08:  # Others are essentially empty (increased from 0.05)
+    # Strategy 1: Strong dominance - filled bubble is much darker than others
+    # This catches dark fills (0.70+) against printed circles (0.30-)
+    if max_fill >= 0.50 and max_fill / (other_avg + 0.001) >= 1.5:
         selected = OPTION_LABELS[max_idx]
-        logger.info(f"  {q_label}: {selected} (others empty, fill={max_fill:.2f})")
+        logger.info(f"  {q_label}: {selected} (strong dominance, fill={max_fill:.2f}, others={other_avg:.2f})")
         return selected
     
-    # Check dominance ratio
-    if max_fill / (other_avg + 0.001) >= DOMINANCE_RATIO:
+    # Strategy 2: Moderate fill with clear separation from second-best
+    # This catches lighter fills (0.30-0.70) when they're clearly the darkest
+    fill_gap = max_fill - other_max
+    if max_fill >= 0.25 and fill_gap >= 0.15:
         selected = OPTION_LABELS[max_idx]
-        logger.info(f"  {q_label}: {selected} (dominant, fill={max_fill:.2f}, others_avg={other_avg:.2f})")
+        logger.info(f"  {q_label}: {selected} (clear winner by {fill_gap:.2f}, fill={max_fill:.2f})")
         return selected
     
-    # Check for multiple filled bubbles
-    filled_count = sum(1 for f in fill_ratios if f >= BUBBLE_FILL_THRESHOLD)
-    if filled_count > 1:
-        logger.info(f"  {q_label}: INVALID ({filled_count} bubbles filled)")
+    # Strategy 3: Check for multiple legitimate fills (INVALID)
+    # Count bubbles that are both above threshold AND reasonably filled
+    significant_fills = [f for f in fill_ratios if f >= 0.25]
+    if len(significant_fills) > 1:
+        logger.info(f"  {q_label}: INVALID ({len(significant_fills)} significant fills)")
         return INVALID
     
-    # Single bubble filled but not dominant enough - still count it if above threshold
+    # Strategy 4: Single bubble above minimum threshold
     if max_fill >= BUBBLE_FILL_THRESHOLD:
-        selected = OPTION_LABELS[max_idx]
-        logger.info(f"  {q_label}: {selected} (single fill, fill={max_fill:.2f})")
-        return selected
+        # Check if it's at least somewhat darker than others
+        if max_fill > other_avg + 0.10:
+            selected = OPTION_LABELS[max_idx]
+            logger.info(f"  {q_label}: {selected} (single fill, fill={max_fill:.2f})")
+            return selected
     
-    logger.info(f"  {q_label}: UNATTEMPTED")
+    # Strategy 5: All bubbles are essentially empty (just printed circles)
+    if max_fill < 0.25:
+        logger.info(f"  {q_label}: UNATTEMPTED (max fill {max_fill:.2f}, likely printed circles only)")
+        return UNATTEMPTED
+    
+    # Ambiguous case - not clearly filled but above threshold
+    logger.info(f"  {q_label}: UNATTEMPTED (ambiguous, max={max_fill:.2f}, others={other_avg:.2f})")
     return UNATTEMPTED
 
 
@@ -211,17 +219,26 @@ def _detect_bubbles_hough(gray: np.ndarray) -> List[Tuple[int, int, int]]:
 
 def _calculate_hough_fill(gray: np.ndarray, cx: int, cy: int, radius: int) -> float:
     """
-    Calculate fill ratio for a Hough-detected bubble using adaptive thresholding.
+    Calculate fill ratio by examining the CENTER of the bubble only.
     
-    Uses the grayscale image with per-bubble adaptive thresholding to distinguish
-    between printed bubble outlines (thin dark ring) and filled bubbles (solid dark).
+    Key insight: A filled bubble has dark pixels in the CENTER.
+    An empty bubble (just printed outline) has white center with dark ring around edge.
+    
+    By looking at only the inner 50% of the bubble radius, we distinguish:
+    - Filled bubble: center is dark (high fill ratio)
+    - Empty bubble: center is white (low fill ratio)
     
     Returns fill ratio from 0.0 (empty) to 1.0 (completely filled).
     """
     h, w = gray.shape
     
+    # Only examine the center 50% of the bubble (ignore outer ring where printed circle is)
+    inner_radius = int(radius * 0.5)
+    if inner_radius < 3:
+        inner_radius = max(3, radius // 2)
+    
     # Ensure coordinates are within bounds
-    r = radius + 2  # Slightly larger ROI
+    r = inner_radius + 2
     x1 = max(cx - r, 0)
     y1 = max(cy - r, 0)
     x2 = min(cx + r, w)
@@ -232,40 +249,33 @@ def _calculate_hough_fill(gray: np.ndarray, cx: int, cy: int, radius: int) -> fl
     if roi.size == 0:
         return 0.0
     
-    # Create circular mask
+    # Create circular mask for INNER region only
     mask = np.zeros(roi.shape, dtype=np.uint8)
     local_cx = cx - x1
     local_cy = cy - y1
-    cv2.circle(mask, (local_cx, local_cy), radius, 255, -1)
+    cv2.circle(mask, (local_cx, local_cy), inner_radius, 255, -1)
     
-    # Count pixels inside the circle
+    # Count pixels inside the inner circle
     total_pixels = cv2.countNonZero(mask)
     if total_pixels == 0:
         return 0.0
     
-    # Get masked ROI
+    # Get masked ROI (center region only)
     masked_roi = cv2.bitwise_and(roi, roi, mask=mask)
     
-    # Calculate statistics of the bubble area
+    # Calculate mean intensity of the center
     roi_pixels = masked_roi[mask == 255]
     if roi_pixels.size == 0:
         return 0.0
     
     mean_intensity = np.mean(roi_pixels)
-    std_intensity = np.std(roi_pixels)
     
-    # Adaptive threshold: filled bubbles have LOWER mean intensity
-    # Empty bubbles (just the printed circle outline) have HIGH mean intensity (white paper)
-    # but with a thin dark ring
+    # Simple threshold: dark center = filled, bright center = empty
+    # Paper white ~200-255, pencil/ink filled ~0-100
+    dark_threshold = 140
     
-    # Strategy: Count pixels significantly darker than the mean
-    # This catches filled areas while ignoring uniform white paper
-    dark_threshold = mean_intensity - 0.5 * std_intensity
-    dark_threshold = max(dark_threshold, 100)  # Don't go below 100
-    dark_threshold = min(dark_threshold, 180)  # Don't go above 180
-    
-    # Count dark pixels
-    _, dark_mask = cv2.threshold(masked_roi, int(dark_threshold), 255, cv2.THRESH_BINARY_INV)
+    # Count dark pixels in center
+    _, dark_mask = cv2.threshold(masked_roi, dark_threshold, 255, cv2.THRESH_BINARY_INV)
     dark_pixels = cv2.countNonZero(cv2.bitwise_and(dark_mask, mask))
     
     fill_ratio = dark_pixels / total_pixels
@@ -338,32 +348,36 @@ def _find_bubble_near(bubbles: List[Tuple[int, int, int]],
     return best_bubble
 
 
-def _read_part_calibrated(gray: np.ndarray, bubbles: List[Tuple[int, int, int]], 
-                          x_cols: List[int], y_rows: List[int], 
+def _read_part_clustered(gray: np.ndarray, bubbles: List[Tuple[int, int, int]], 
                           part_name: str) -> Dict[str, str]:
     """
-    Read answers using calibrated coordinates.
+    Read answers by clustering detected bubbles into a grid.
     
-    Uses the actual detected bubble positions (x_cols, y_rows) to read fill levels.
+    Uses k-means clustering to group bubbles into 8 rows (questions) 
+    and 4 columns (options A-D) per row.
     """
     answers = {}
     
-    logger.info(f"Processing {part_name} with calibrated coordinates...")
+    logger.info(f"Processing {part_name} with bubble clustering...")
     
-    for q_idx, cy in enumerate(y_rows):
+    # Cluster bubbles into grid
+    grid = _cluster_bubbles_to_grid(bubbles, num_rows=8, num_cols=4)
+    
+    if not grid:
+        logger.error(f"{part_name}: Failed to cluster bubbles into grid")
+        return {f"Q{str(i+1).zfill(2)}": UNATTEMPTED for i in range(8)}
+    
+    for q_idx in range(8):
         q_label = f"Q{str(q_idx + 1).zfill(2)}"
         
         fill_ratios = []
-        for opt_idx, cx in enumerate(x_cols):
-            # Find a detected bubble near this calibrated position
-            bubble = _find_bubble_near(bubbles, cx, cy, search_radius=40)
-            
-            if bubble:
-                bx, by, br = bubble
+        for opt_idx in range(4):
+            if q_idx in grid and opt_idx in grid[q_idx]:
+                bx, by, br = grid[q_idx][opt_idx]
                 fill_ratio = _calculate_hough_fill(gray, bx, by, br)
             else:
-                # No bubble detected - fall back to template position
-                fill_ratio = _calculate_bubble_fill(gray, cx, cy, BUBBLE_RADIUS)
+                # Missing bubble - assume empty
+                fill_ratio = 0.0
             
             fill_ratios.append(fill_ratio)
         
@@ -407,89 +421,80 @@ def _read_part(gray: np.ndarray, x_cols: List[int], part_name: str,
     return answers
 
 
-def _calibrate_from_bubbles(bubbles: List[Tuple[int, int, int]], 
-                             part_x_cols: List[int],
-                             scale_x: float) -> List[int]:
+def _cluster_bubbles_to_grid(bubbles: List[Tuple[int, int, int]], 
+                              num_rows: int = 8,
+                              num_cols: int = 4) -> Dict[int, Dict[int, Tuple[int, int, int]]]:
     """
-    Calibrate X coordinates by finding the actual bubble centers.
+    Cluster detected bubbles into a grid of rows and columns.
     
-    Groups bubbles by X position and finds the median X for each option column.
+    Uses k-means clustering on Y coordinates to find rows,
+    then sorts each row by X to assign columns (A, B, C, D).
+    
+    Returns: {row_idx: {col_idx: (x, y, r)}}
     """
-    if not bubbles:
-        return [int(x * scale_x) for x in part_x_cols]
+    if len(bubbles) < num_rows * num_cols // 2:
+        logger.warning(f"Not enough bubbles ({len(bubbles)}) for grid clustering")
+        return {}
     
-    # Sort bubbles by X
-    bubbles_sorted = sorted(bubbles, key=lambda b: b[0])
-    
-    # Group bubbles into 4 columns using expected positions as guides
-    columns = [[] for _ in range(4)]
-    
-    for bubble in bubbles:
-        bx = bubble[0]
-        # Find closest expected column
-        distances = [abs(bx - int(x * scale_x)) for x in part_x_cols]
-        closest_col = distances.index(min(distances))
-        if min(distances) < 50:  # Within 50 pixels
-            columns[closest_col].append(bx)
-    
-    # Calculate median X for each column
-    calibrated = []
-    for i, col in enumerate(columns):
-        if col:
-            calibrated.append(int(np.median(col)))
-        else:
-            # Fallback to scaled template
-            calibrated.append(int(part_x_cols[i] * scale_x))
-    
-    return calibrated
-
-
-def _calibrate_y_from_bubbles(bubbles: List[Tuple[int, int, int]], 
-                               scale_y: float,
-                               expected_rows: int = 8) -> List[int]:
-    """
-    Calibrate Y coordinates by finding the actual row positions.
-    
-    Groups bubbles by Y position using k-means-like clustering.
-    Expects a specific number of rows (8 for questions).
-    """
-    if len(bubbles) < expected_rows * 2:
-        logger.warning(f"Not enough bubbles ({len(bubbles)}) for Y calibration. Using template.")
-        return [int(y * scale_y) for y in ROW_Y]
-    
-    # Get all Y coordinates
+    # Extract Y coordinates for row clustering
     y_coords = np.array([b[1] for b in bubbles])
     
-    # Sort Y values
+    # Simple k-means-like clustering for rows
+    # Sort Y and find clusters
     y_sorted = np.sort(y_coords)
     
-    # Use template Y positions as initial guess (scaled)
-    template_y = np.array([int(y * scale_y) for y in ROW_Y])
+    # Find row centers by looking for groups of bubbles
+    # Expect roughly equal spacing between rows
+    min_y, max_y = y_sorted[0], y_sorted[-1]
+    expected_spacing = (max_y - min_y) / (num_rows - 1) if num_rows > 1 else 30
     
-    # Find actual Y positions by looking for clusters near template positions
-    calibrated_y = []
-    for ty in template_y:
-        # Find bubbles within 50 pixels of template Y
-        nearby = y_sorted[(y_sorted >= ty - 50) & (y_sorted <= ty + 50)]
-        if len(nearby) >= 4:  # At least 4 bubbles (one per option)
-            # Use the median of nearby bubbles
-            calibrated_y.append(int(np.median(nearby)))
-        else:
-            # Fall back to template
-            calibrated_y.append(ty)
+    # Initialize row centers evenly distributed
+    row_centers = np.linspace(min_y + expected_spacing/2, max_y - expected_spacing/2, num_rows)
     
-    # Verify we have the right number of rows with reasonable spacing
-    if len(calibrated_y) == expected_rows:
-        # Check spacing between rows (should be roughly consistent)
-        spacings = [calibrated_y[i+1] - calibrated_y[i] for i in range(len(calibrated_y)-1)]
-        avg_spacing = np.mean(spacings)
+    # Iteratively refine row centers
+    for _ in range(5):  # 5 iterations should converge
+        row_assignments = [[] for _ in range(num_rows)]
         
-        if 20 <= avg_spacing <= 50:  # Reasonable row spacing
-            logger.info(f"Y calibration successful: avg row spacing = {avg_spacing:.1f}px")
-            return calibrated_y
+        for y in y_sorted:
+            # Find closest row center
+            distances = [abs(y - rc) for rc in row_centers]
+            closest = distances.index(min(distances))
+            row_assignments[closest].append(y)
+        
+        # Update row centers to median of assigned bubbles
+        for i in range(num_rows):
+            if row_assignments[i]:
+                row_centers[i] = np.median(row_assignments[i])
     
-    logger.warning(f"Y calibration failed validation. Using template.")
-    return [int(y * scale_y) for y in ROW_Y]
+    # Now assign each bubble to a row and column
+    grid = {}
+    for i in range(num_rows):
+        grid[i] = {}
+    
+    # For each bubble, find closest row
+    for bubble in bubbles:
+        bx, by, br = bubble
+        distances = [abs(by - rc) for rc in row_centers]
+        row_idx = distances.index(min(distances))
+        
+        if row_idx not in grid:
+            grid[row_idx] = {}
+        
+        # Store bubble in this row (will sort by X later)
+        if 'bubbles' not in grid[row_idx]:
+            grid[row_idx]['bubbles'] = []
+        grid[row_idx]['bubbles'].append(bubble)
+    
+    # Sort each row by X and assign columns
+    for row_idx in grid:
+        if 'bubbles' in grid[row_idx]:
+            row_bubbles = sorted(grid[row_idx]['bubbles'], key=lambda b: b[0])
+            # Assign to columns 0-3 (A-D)
+            for col_idx, bubble in enumerate(row_bubbles[:num_cols]):
+                grid[row_idx][col_idx] = bubble
+            del grid[row_idx]['bubbles']
+    
+    return grid
 
 
 def read_bubble_sheet(color_image: np.ndarray,
@@ -550,21 +555,9 @@ def read_bubble_sheet(color_image: np.ndarray,
         
         logger.info(f"Part-I: {len(part1_bubbles)} bubbles, Part-II: {len(part2_bubbles)} bubbles")
         
-        # Calibrate coordinates from detected bubbles
-        calibrated_p1_x = _calibrate_from_bubbles(part1_bubbles, PART1_X, scale_x)
-        calibrated_p2_x = _calibrate_from_bubbles(part2_bubbles, PART2_X, scale_x)
-        
-        # Calibrate Y separately for each part (they might have slight offset)
-        calibrated_p1_y = _calibrate_y_from_bubbles(part1_bubbles, scale_y)
-        calibrated_p2_y = _calibrate_y_from_bubbles(part2_bubbles, scale_y)
-        
-        logger.info(f"Calibrated Part-I X: {calibrated_p1_x}")
-        logger.info(f"Calibrated Part-II X: {calibrated_p2_x}")
-        logger.info(f"Calibrated Y rows: {calibrated_y}")
-        
-        # Use calibrated coordinates
-        part1 = _read_part_calibrated(gray, part1_bubbles, calibrated_p1_x, calibrated_y, "Part-I")
-        part2 = _read_part_calibrated(gray, part2_bubbles, calibrated_p2_x, calibrated_y, "Part-II")
+        # Cluster bubbles into grid and read answers
+        part1 = _read_part_clustered(gray, part1_bubbles, "Part-I")
+        part2 = _read_part_clustered(gray, part2_bubbles, "Part-II")
     else:
         # Use template-based detection with scaled coordinates
         part1 = _read_part(gray, PART1_X, "Part-I", scale_x, scale_y)

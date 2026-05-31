@@ -70,7 +70,7 @@ def _extract_region_of_interest(image: np.ndarray) -> np.ndarray:
 
 def _fallback_name_extraction(image: np.ndarray) -> Dict[str, str]:
     """
-    Fallback method using basic image analysis and Tesseract if available.
+    Fallback method using Tesseract OCR with improved preprocessing.
     This is used when Gemini API is not available.
     """
     result = {"name": "Unknown", "reg_no": "Unknown"}
@@ -78,40 +78,95 @@ def _fallback_name_extraction(image: np.ndarray) -> Dict[str, str]:
     # Try to use Tesseract if available
     try:
         import pytesseract
+        import cv2
+        import numpy as np
         
         h, w = image.shape[:2]
         roi = _extract_region_of_interest(image)
         
+        # Convert to grayscale if needed
+        if len(roi.shape) == 3:
+            gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        else:
+            gray_roi = roi
+        
+        # Preprocess for better OCR
+        # Increase contrast
+        gray_roi = cv2.convertScaleAbs(gray_roi, alpha=1.5, beta=0)
+        
+        # Denoise
+        gray_roi = cv2.fastNlMeansDenoising(gray_roi, None, 10, 7, 21)
+        
+        # Adaptive threshold to make text more distinct
+        _, binary_roi = cv2.threshold(gray_roi, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
         # Convert to PIL for Tesseract
-        pil_image = _cv2_to_pil(roi)
+        pil_image = Image.fromarray(binary_roi)
         
-        # Run OCR
-        text = pytesseract.image_to_string(pil_image)
+        # Run OCR with specific config for handwriting/printed mix
+        custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_: '
+        text = pytesseract.image_to_string(pil_image, config=custom_config)
         
-        # Try to extract registration number (pattern like FA24-BSE-016)
-        reg_pattern = r'[A-Z]{2}\d{2}-[A-Z]{3}-\d{3}'
-        reg_match = re.search(reg_pattern, text.upper())
+        logger.info(f"Tesseract raw output:\n{text}")
+        
+        # Try to extract registration number (pattern like FA24-BSE-016 or FA24BSE016)
+        # Try dashed format first
+        reg_pattern_dashed = r'[A-Z]{2}\d{2}-[A-Z]{3}-\d{3}'
+        reg_match = re.search(reg_pattern_dashed, text.upper())
         if reg_match:
             result["reg_no"] = reg_match.group(0)
+        else:
+            # Try without dashes (FA24BSE016)
+            reg_pattern_nodash = r'([A-Z]{2})(\d{2})([A-Z]{3})(\d{3})'
+            reg_match = re.search(reg_pattern_nodash, text.upper())
+            if reg_match:
+                result["reg_no"] = f"{reg_match.group(1)}{reg_match.group(2)}-{reg_match.group(3)}-{reg_match.group(4)}"
         
-        # Try to extract name (look for "Name:" or similar)
+        # Try to extract name - look for patterns like "Name:" or just capitalized words
         lines = text.split('\n')
         for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Look for "Name:" label
             if 'name' in line.lower():
-                # Extract text after "Name:"
-                parts = line.split(':', 1)
+                parts = re.split(r'[:\-]', line, 1)
                 if len(parts) > 1:
                     name = parts[1].strip()
+                    # Clean up - remove non-alphabetic characters except spaces
+                    name = re.sub(r'[^A-Za-z\s]', '', name).strip()
                     if name and len(name) > 2:
                         result["name"] = name
+                        break
+        
+        # If no name found with "Name:" label, try to find capitalized words
+        if result["name"] == "Unknown":
+            # Look for 2-3 capitalized words (likely a name)
+            name_pattern = r'([A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)'
+            for line in lines:
+                line = line.strip()
+                if not line or len(line) < 3:
+                    continue
+                # Skip lines that look like registration numbers
+                if re.search(r'\d', line):
+                    continue
+                name_match = re.search(name_pattern, line)
+                if name_match:
+                    potential_name = name_match.group(1).strip()
+                    if len(potential_name) > 3:
+                        result["name"] = potential_name
                         break
         
         logger.info(f"Tesseract OCR result -> Name: {result['name']}, Reg#: {result['reg_no']}")
         
     except ImportError:
         logger.warning("Tesseract not available. Install with: pip install pytesseract")
+        logger.warning("Also install Tesseract OCR engine from: https://github.com/UB-Mannheim/tesseract/wiki")
     except Exception as e:
         logger.error(f"Tesseract OCR failed: {e}")
+        import traceback
+        traceback.print_exc()
     
     return result
 

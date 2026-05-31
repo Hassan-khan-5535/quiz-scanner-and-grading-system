@@ -342,7 +342,7 @@ def grade_quiz(student_answers: Dict[str, Dict[str, str]],
     logger.info("=" * 50)
     logger.info(f"Grading complete: {correct_count}/{questions_processed} correct")
     logger.info(f"Score: {total_marks}/{max_possible_marks} ({percentage:.1f}%) - Grade: {letter_grade}")
-    logger.info(f"Breakdown: {correct_count}✓ {incorrect_count}✗ {unattempted_count}— {invalid_count}⚠")
+    logger.info(f"Breakdown: {correct_count} correct, {incorrect_count} wrong, {unattempted_count} unattempted, {invalid_count} invalid")
     logger.info("=" * 50)
     
     return grade_report

@@ -63,10 +63,11 @@ ADAPTIVE_THRESH_CONSTANT = 2
 # TUNING:
 # - INCREASE if empty bubbles are being detected as filled (false positives)
 # - DECREASE if filled bubbles are being missed (false negatives)
-# - Typical range: 0.10 to 0.30
-# - Default: 0.12 (12% of bubble area must be dark)
-#   Lower threshold catches light pencil marks better
-BUBBLE_FILL_THRESHOLD = 0.12
+# - For Hough Circle detection: use 0.20-0.30 (printed circles ~0.10-0.20, filled ~0.25-0.90)
+# - For template detection: use 0.10-0.20
+# - Default: 0.22 (22% of bubble area must be dark)
+#   Combined with DOMINANCE_RATIO=2.0 to ensure filled bubble is clearly darker
+BUBBLE_FILL_THRESHOLD = 0.22
 
 # Minimum confidence score for a bubble to be considered filled
 # This is a weighted combination of fill ratio, darkness, and contour analysis
@@ -81,10 +82,11 @@ BUBBLE_CONFIDENCE_THRESHOLD = 0.35
 # Dominance ratio - filled bubble must be this many times darker than others
 # 
 # TUNING:
-# - INCREASE if partially filled bubbles are being detected
+# - INCREASE if partially filled bubbles or printed circles are being detected as filled
 # - DECREASE if lightly filled bubbles are being missed
-# - Default: 1.5 (filled bubble is 1.5x darker than average of others)
-DOMINANCE_RATIO = 1.5
+# - Default: 2.0 (filled bubble is 2x darker than average of others)
+#   Higher value helps distinguish filled bubbles from printed circle outlines
+DOMINANCE_RATIO = 2.0
 
 # Number of questions per part
 QUESTIONS_PER_PART = 8
@@ -123,8 +125,8 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
 # Google Gemini model to use for handwriting recognition
-# Use gemini-1.5-flash for fast, accurate OCR
-GEMINI_MODEL_NAME = "gemini-1.5-flash"
+# Available models: gemini-pro, gemini-1.0-pro, gemini-1.5-pro (with API key)
+GEMINI_MODEL_NAME = "gemini-pro"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 # =============================================================
