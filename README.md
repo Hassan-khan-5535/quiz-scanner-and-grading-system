@@ -79,7 +79,13 @@ quiz-scanner/
 > ⚠️ **Never commit your `.env` file!** It is already listed in `.gitignore` to protect your API key.
 
 ## 📸 Demo
-*(Screenshots will be added here upon completion)*
+### Main Interface
+![Automated Quiz Scanner Main Interface](screenshots/main-interface.png)
+*The main dashboard showing the Upload Quiz section and AI-powered grading system*
+
+### Batch Processing
+![Batch Processing Interface](screenshots/batch-processing.png)
+*Batch processing feature to handle multiple quiz sheets at once*
 
 ---
 **Course:** Artificial Intelligence (BSE-4A)
