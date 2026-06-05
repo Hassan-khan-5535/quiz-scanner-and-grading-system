@@ -87,6 +87,14 @@ quiz-scanner/
 ![Batch Processing Interface](screenshots/batch-processing.png)
 *Batch processing feature to handle multiple quiz sheets at once*
 
+### Quiz Sheet
+![Quiz Sheet Sample](screenshots/quiz-sheet.png)
+*Sample quiz sheet with QR code, student info, and bubble answer grid*
+
+### Quiz Result
+![Quiz Result Output](screenshots/quiz-result.png)
+*Graded result showing student score and per-question breakdown*
+
 ---
 **Course:** Artificial Intelligence (BSE-4A)
 **Semester:** SP 2026
