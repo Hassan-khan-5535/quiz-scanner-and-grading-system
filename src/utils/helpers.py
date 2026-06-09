@@ -109,7 +109,7 @@ def ensure_directory(dir_path: str) -> None:
     os.makedirs(dir_path, exist_ok=True)
 
 
-def get_image_files(folder_path: str) -> list[str]:
+def get_image_files(folder_path: str, recursive: bool = True) -> list[str]:
     """
     Get a sorted list of all image file paths in a folder.
 
@@ -120,6 +120,7 @@ def get_image_files(folder_path: str) -> list[str]:
 
     Args:
         folder_path: Path to the folder to scan.
+        recursive:   If True, also scan subdirectories for images.
 
     Returns:
         List of full file paths to image files, sorted alphabetically.
@@ -129,14 +130,28 @@ def get_image_files(folder_path: str) -> list[str]:
         return []
 
     image_files = []
-    for filename in sorted(os.listdir(folder_path)):
-        # Get the file extension and check if it's a supported image format
-        # os.path.splitext("quiz1.jpg") returns ("quiz1", ".jpg")
-        _, extension = os.path.splitext(filename)
 
-        if extension.lower() in SUPPORTED_EXTENSIONS:
+    # Directories to skip during recursive scanning
+    skip_dirs = {'temp', '__pycache__', '.git', 'node_modules', '.pytest_cache'}
+
+    if recursive:
+        for root, dirs, files in os.walk(folder_path):
+            # Remove directories we want to skip (modifies dirs in-place)
+            dirs[:] = [d for d in dirs if d not in skip_dirs]
+            dirs.sort()
+            for filename in sorted(files):
+                _, extension = os.path.splitext(filename)
+                if extension.lower() in SUPPORTED_EXTENSIONS:
+                    full_path = os.path.join(root, filename)
+                    image_files.append(full_path)
+    else:
+        for filename in sorted(os.listdir(folder_path)):
             full_path = os.path.join(folder_path, filename)
-            image_files.append(full_path)
+            if os.path.isfile(full_path):
+                _, extension = os.path.splitext(filename)
+                if extension.lower() in SUPPORTED_EXTENSIONS:
+                    image_files.append(full_path)
 
+    image_files.sort()
     logger.info(f"Found {len(image_files)} image(s) in {folder_path}")
     return image_files

@@ -24,7 +24,7 @@ import fitz  # PyMuPDF for PDF handling
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from src.batch_processing.batch_processor import process_single_image, process_batch
-from config import SAMPLES_BATCH_DIR
+from config import SAMPLES_DIR, SAMPLES_BATCH_DIR
 
 # --- STREAMLIT PAGE CONFIGURATION ---
 st.set_page_config(
@@ -534,10 +534,10 @@ with col_left:
     st.markdown("---")
     
     st.markdown('<div class="section-header">⚙️ Batch Processing</div>', unsafe_allow_html=True)
-    st.info(f"Will process all images in: `{SAMPLES_BATCH_DIR}`")
+    st.info(f"Will process all images in: `{SAMPLES_DIR}`")
     if st.button("Run Batch Processing", type="primary"):
         with st.spinner("Processing batch... This may take a minute."):
-            report_path = process_batch(SAMPLES_BATCH_DIR)
+            report_path = process_batch(SAMPLES_DIR)
             
             if report_path and os.path.exists(report_path):
                 st.success("Batch processing complete!")

@@ -96,17 +96,25 @@ def process_batch(folder_path: str) -> str:
     Finds all images in a folder, processes them, and generates an Excel report.
     
     Returns:
-        Path to the generated report file.
+        Path to the generated report file, or empty string if no images found or report generation fails.
     """
     logger.info(f"Starting batch processing on folder: {folder_path}")
     
-    image_files = get_image_files(folder_path)
+    if not os.path.isdir(folder_path):
+        logger.error(f"Folder does not exist: {folder_path}")
+        return ""
+    
+    image_files = get_image_files(folder_path, recursive=True)
     
     if not image_files:
         logger.error("No valid image files found in folder.")
         return ""
+    
+    logger.info(f"Found {len(image_files)} image(s) to process")
         
     all_results = []
+    successful_count = 0
+    failed_count = 0
     
     # We cache the answer key from the first successful read.
     # Why? If student #4's QR code is smudged, we assume they are taking 
@@ -115,17 +123,39 @@ def process_batch(folder_path: str) -> str:
     
     # Process images one by one
     for index, image_path in enumerate(image_files):
-        logger.info(f"Processing image {index + 1} of {len(image_files)}...")
+        logger.info(f"Processing image {index + 1} of {len(image_files)}: {os.path.basename(image_path)}")
         
         result = process_single_image(image_path, current_answer_key)
         all_results.append(result)
         
-        # Update cache if we successfully read a QR code
-        if "answer_key" in result and current_answer_key is None:
-            current_answer_key = result["answer_key"]
-            
-    # Generate the final report
-    report_path = generate_report(all_results, output_format="xlsx")
+        # Track success/failure
+        if "error" in result:
+            failed_count += 1
+            logger.warning(f"Failed to process {os.path.basename(image_path)}: {result['error']}")
+        else:
+            successful_count += 1
+            # Update cache if we successfully read a QR code
+            if "answer_key" in result and current_answer_key is None:
+                current_answer_key = result["answer_key"]
+                logger.info("Cached answer key from this image for fallback")
     
-    logger.info(f"Batch processing complete! Processed {len(image_files)} files.")
-    return report_path
+    logger.info(f"Processing complete: {successful_count} successful, {failed_count} failed")
+    
+    if not all_results:
+        logger.error("No results to report")
+        return ""
+    
+    # Generate the final report
+    try:
+        report_path = generate_report(all_results, output_format="xlsx")
+        if report_path and os.path.exists(report_path):
+            logger.info(f"Batch processing complete! Report saved to: {report_path}")
+            return report_path
+        else:
+            logger.error("Report generation failed or file not created")
+            return ""
+    except Exception as e:
+        logger.error(f"Error generating report: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return ""
