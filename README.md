@@ -80,19 +80,23 @@ quiz-scanner/
 
 ## 📸 Demo
 ### Main Interface
-![Automated Quiz Scanner Main Interface](screenshots/main-interface.png)
+<img width="1913" height="873" alt="image" src="https://github.com/user-attachments/assets/36d6e4cb-8927-4d92-ab46-6bad8fcda36d" />
+
 *The main dashboard showing the Upload Quiz section and AI-powered grading system*
 
 ### Batch Processing
-![Batch Processing Interface](screenshots/batch-processing.png)
+<img width="1864" height="873" alt="image" src="https://github.com/user-attachments/assets/4783e9bd-a9b7-4d65-8161-b546a6de422a" />
+
 *Batch processing feature to handle multiple quiz sheets at once*
 
 ### Quiz Sheet
-![Quiz Sheet Sample](screenshots/quiz-sheet.png)
+<img width="1903" height="875" alt="image" src="https://github.com/user-attachments/assets/e4e58cc9-01e9-4064-8cfb-eac3ee0af531" />
+
 *Sample quiz sheet with QR code, student info, and bubble answer grid*
 
 ### Quiz Result
-![Quiz Result Output](screenshots/quiz-result.png)
+<img width="1247" height="804" alt="image" src="https://github.com/user-attachments/assets/fdd44e14-b852-4192-b5e5-14870a59a48b" />
+
 *Graded result showing student score and per-question breakdown*
 
 ---
