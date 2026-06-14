@@ -25,7 +25,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from src.batch_processing.batch_processor import process_single_image, process_batch
 from src.reporting.report_generator import generate_report
-from config import SAMPLES_DIR, SAMPLES_BATCH_DIR
+from config import SAMPLES_DIR, SAMPLES_BATCH_DIR, SAMPLES_SINGLE_DIR
 
 # --- STREAMLIT PAGE CONFIGURATION ---
 st.set_page_config(
@@ -530,6 +530,39 @@ st.markdown("""
 col_left, col_right = st.columns([1, 2])
 
 with col_left:
+    # --- Sample Sheets Download Section ---
+    st.markdown('<div class="section-header">📄 Sample Quiz Sheets</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div style='background: #eef2f7; padding: 0.75rem; border-radius: 6px; margin-bottom: 0.75rem; color: #333333;'>
+        <span style='font-size: 0.9rem; color: #333333;'>Download a sample sheet to test the scanner. These are the only supported quiz templates.</span>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Find all sample sheets in the single folder
+    sample_files = sorted([
+        f for f in os.listdir(SAMPLES_SINGLE_DIR)
+        if f.lower().endswith(('.jpg', '.jpeg', '.png'))
+    ]) if os.path.isdir(SAMPLES_SINGLE_DIR) else []
+    
+    if sample_files:
+        for i, sample_name in enumerate(sample_files):
+            sample_path = os.path.join(SAMPLES_SINGLE_DIR, sample_name)
+            with open(sample_path, "rb") as sf:
+                file_ext = os.path.splitext(sample_name)[1].lower()
+                mime_type = "image/jpeg" if file_ext in (".jpg", ".jpeg") else "image/png"
+                st.download_button(
+                    label=f"📥 Sample {i + 1} — {sample_name}",
+                    data=sf,
+                    file_name=sample_name,
+                    mime=mime_type,
+                    key=f"sample_download_{i}"
+                )
+    else:
+        st.warning("No sample sheets found.")
+    
+    st.markdown("---")
+    
+    # --- Upload Section ---
     st.markdown('<div class="section-header">📤 Upload Quiz</div>', unsafe_allow_html=True)
     uploaded_file = st.file_uploader("Upload a quiz sheet (JPG/PNG/PDF)", type=["jpg", "jpeg", "png", "pdf"])
     
@@ -639,7 +672,7 @@ with col_right:
         st.markdown("""
         <div style='background: white; padding: 3rem; border-radius: 8px; 
                     box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;
-                    margin-top: 2rem;'>
+                    margin-top: 22rem;'>
             <div style='font-size: 4rem; margin-bottom: 1rem;'>👈</div>
             <h3 style='color: #2c5f8d; margin: 0;'>Upload a Quiz Sheet</h3>
             <p style='color: #666; margin-top: 1rem;'>
