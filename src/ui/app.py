@@ -24,6 +24,7 @@ import fitz  # PyMuPDF for PDF handling
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from src.batch_processing.batch_processor import process_single_image, process_batch
+from src.reporting.report_generator import generate_report
 from config import SAMPLES_DIR, SAMPLES_BATCH_DIR
 
 # --- STREAMLIT PAGE CONFIGURATION ---
@@ -615,6 +616,24 @@ with col_right:
                 
                 # Display question breakdown
                 display_question_breakdown(grade, key)
+                
+                # --- Generate Excel report for single image ---
+                # Reuse the same generate_report function used by batch processing
+                # so the Excel format is identical.
+                single_result_for_report = [result]  # wrap in list as generate_report expects a list
+                excel_path = generate_report(single_result_for_report, output_format="xlsx")
+                
+                if excel_path and os.path.exists(excel_path):
+                    st.markdown('\n                    <div class="section-header">📥 Download Report</div>\n                    ', unsafe_allow_html=True)
+                    
+                    with open(excel_path, "rb") as excel_file:
+                        st.download_button(
+                            label="📥 Download Excel Report",
+                            data=excel_file,
+                            file_name=os.path.basename(excel_path),
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            key=f"single_download_{idx}"
+                        )
     else:
         st.markdown("""
         <div style='background: white; padding: 3rem; border-radius: 8px; 
