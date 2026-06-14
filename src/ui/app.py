@@ -447,13 +447,14 @@ def display_grade_summary(grade: dict):
         """, unsafe_allow_html=True)
 
 
-def display_question_breakdown(grade: dict, answer_key: dict):
-    """Display detailed question breakdown with answers and color coding."""
+def display_question_breakdown(grade: dict, answer_key: dict, student_answers: dict):
+    """Display detailed question breakdown with student's attempted answers and color coding."""
     st.markdown('<div class="section-header">✓ Question Breakdown</div>', unsafe_allow_html=True)
     
     breakdown = grade["breakdown"]
-    part1_answers = answer_key.get('part1', {})
-    part2_answers = answer_key.get('part2', {})
+    # Use student's attempted answers for the displayed letters
+    part1_attempted = student_answers.get('part1', {})
+    part2_attempted = student_answers.get('part2', {})
     
     # Create table rows with color coding
     rows = ""
@@ -461,8 +462,8 @@ def display_question_breakdown(grade: dict, answer_key: dict):
         q_num = f"Q{str(i).zfill(2)}"
         part1_status = breakdown.get("part1", {}).get(q_num, "")
         part2_status = breakdown.get("part2", {}).get(q_num, "")
-        part1_answer = part1_answers.get(q_num, "?")
-        part2_answer = part2_answers.get(q_num, "?")
+        part1_answer = part1_attempted.get(q_num, "?")
+        part2_answer = part2_attempted.get(q_num, "?")
         
         # Color code the status symbols
         def colorize(status, answer):
@@ -497,12 +498,12 @@ def display_question_breakdown(grade: dict, answer_key: dict):
     """, unsafe_allow_html=True)
     
     st.markdown("""
-    <div style='background: #f8f9fa; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem;'>
-        <strong>Legend:</strong> 
-        <span style='color: #28a745; font-weight: bold;'>✓</span> = Correct | 
-        <span style='color: #dc3545; font-weight: bold;'>✗</span> = Incorrect | 
-        <span style='color: #6c757d; font-weight: bold;'>—</span> = Unattempted | 
-        <span style='color: #fd7e14; font-weight: bold;'>⚠</span> = Invalid (Multiple Filled)
+    <div style='background: #f8f9fa; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem; color: #333333;'>
+        <strong style='color: #333333;'>Legend:</strong> 
+        <span style='color: #28a745; font-weight: bold;'>✓</span> <span style='color: #333333;'>= Correct</span> | 
+        <span style='color: #dc3545; font-weight: bold;'>✗</span> <span style='color: #333333;'>= Incorrect</span> | 
+        <span style='color: #6c757d; font-weight: bold;'>—</span> <span style='color: #333333;'>= Unattempted</span> | 
+        <span style='color: #fd7e14; font-weight: bold;'>⚠</span> <span style='color: #333333;'>= Invalid (Multiple Filled)</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -615,7 +616,7 @@ with col_right:
                 display_grade_summary(grade)
                 
                 # Display question breakdown
-                display_question_breakdown(grade, key)
+                display_question_breakdown(grade, key, result["student_answers"])
                 
                 # --- Generate Excel report for single image ---
                 # Reuse the same generate_report function used by batch processing
