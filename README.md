@@ -109,4 +109,3 @@ quiz-scanner/
 |------|----------------|
 | Hassan Khan | FA24-BSE-004 |
 | Atif Khan | FA24-BSE-011 |
-| Murad | FA24-BSE-036 |
